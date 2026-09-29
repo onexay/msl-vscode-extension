@@ -1,6 +1,6 @@
 # MSL for VS Code (preview)
 
-Opens folders inside msl distros, like the WSL extension on Windows. VS Code talks to the VS Code Server in the distro over managed pipes (msl → vsock → the server's Unix socket). It uses no SSH and opens no TCP port on macOS. Design: [#38](https://github.com/onexay/msl/issues/38) (option C′), milestone Sodium.
+Opens folders inside [msl](https://github.com/onexay/msl) distros, like the WSL extension on Windows. VS Code talks to the VS Code Server in the distro over managed pipes (msl → vsock → the server's Unix socket). It uses no SSH and opens no TCP port on macOS. Design: [onexay/msl#38](https://github.com/onexay/msl/issues/38) (option C′), milestone Sodium.
 
 The extension uses VS Code's proposed `resolvers` API, so it isn't on the Marketplace. msl ships it (`share/msl/msl.vsix`) and sets it up:
 
@@ -12,7 +12,7 @@ $ msl --manage-ide --ide all --uninstall
 
 It installs the extension with the IDE's own CLI and adds `"enable-proposed-api": ["onexay.msl"]` to its `argv.json`, keeping comments and other keys. The first change saves a backup, `argv.json.msl-backup`. The installer runs it for the IDEs it finds, unless you pass `--no-ide`, and `msl --uninstall` undoes it. Quit and reopen the IDE (⌘Q), then run **MSL: Connect to Distro**. You can also open `vscode-remote://msl+<distro>/home/<user>` directly.
 
-To build the `.vsix` on its own: `cd extensions/vscode && npm install && npm run package`. `scripts/build.sh` puts it in `build/share/msl/msl.vsix`.
+To build the `.vsix`: `npm install && npm run package` (writes `dist/msl-<version>.vsix`). To bundle a local build into msl: `MSL_VSIX=<this repo>/dist/msl-<version>.vsix scripts/build.sh` in an msl checkout.
 
 Every connection goes through msld's `connect.sock`. With an older msld that doesn't have it, the extension falls back to one `msl -e … msl-bridge` process per connection. On first connect to a distro, the extension installs the VS Code Server that matches your VS Code into `~/.vscode-server/bin/<commit>`. It downloads the server on macOS, caches it in `~/Library/Caches/msl/vscode-server/` for every distro to reuse, and pipes it in, so the distro needs no `curl` or `wget` (stock Debian has neither). The server listens on `~/.vscode-server/msl/<commit>.sock`. Forwarded ports listen on macOS's `127.0.0.1`.
 
@@ -26,11 +26,11 @@ Every connection goes through msld's `connect.sock`. With an older msld that doe
 
 ## Testing
 
-`Tests/e2e/sodium.sh` covers everything below the extension: `msl-bridge`, `connect.sock`, its allowlist, and idle-timeout sessions. The extension needs a manual check. Launch an isolated VS Code so your own profile is left alone. Keep `--user-data-dir` short, because VS Code's IPC socket path must be at most 103 characters.
+msl's `Tests/e2e/sodium.sh` covers everything below the extension: `msl-bridge`, `connect.sock`, its allowlist, and idle-timeout sessions. The extension needs a manual check. Launch an isolated VS Code so your own profile is left alone. Keep `--user-data-dir` short, because VS Code's IPC socket path must be at most 103 characters.
 
 ```console
 $ code --user-data-dir /tmp/msl-vsc --extensions-dir /tmp/msl-vsc-ext --enable-proposed-api onexay.msl \
-    --extensionDevelopmentPath=$PWD/extensions/vscode --folder-uri vscode-remote://msl+<distro>/home/<user>
+    --extensionDevelopmentPath=$PWD --folder-uri vscode-remote://msl+<distro>/home/<user>
 ```
 
 - [ ] **Open:** the window connects, and the log (Output › MSL, or `exthost/onexay.msl/*.log`) shows `server at …`. No `msl` processes are running for pipes.
@@ -39,3 +39,15 @@ $ code --user-data-dir /tmp/msl-vsc --extensions-dir /tmp/msl-vsc-ext --enable-p
 - [ ] **Two distros:** windows on two distros at once, each with its own server and label. Use the installed `.vsix` for this: a second launch with `--extensionDevelopmentPath` reloads the development window instead of opening a new one.
 - [ ] **Label:** the window title and remote indicator show `MSL: <distro>`.
 - [ ] **Install:** install the `.vsix` into a normal profile, add `enable-proposed-api` to `~/.vscode/argv.json`, then run **MSL: Connect to Distro**.
+
+## Release
+
+Each version is a GitHub release, `vscode-<version>`.
+
+1. Bump `"version"` in `package.json` and push. CI's *VS Code extension* workflow builds the `.vsix` as artifact `vscode-<version>`.
+2. Run `./publish.sh`. It publishes that artifact with `release.sha256`, after checking that CI built it from a tree identical to HEAD's.
+3. In msl, run `scripts/pin.sh vscode vscode-<version>` and commit the pin. msl releases bundle the pinned `.vsix`.
+
+## Contributing
+
+Same rules as msl: see its [CONTRIBUTING.md](https://github.com/onexay/msl/blob/main/CONTRIBUTING.md). Sign off every commit (`git commit -s`, [DCO](https://developercertificate.org/)).
