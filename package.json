@@ -35,9 +35,9 @@
     "package": "mkdir -p dist && vsce package --no-dependencies -o dist/"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^26.6.3",
     "@types/vscode": "^1.100.0",
-    "@vscode/vsce": "^3.0.0",
-    "typescript": "^5.6.0"
+    "@vscode/vsce": "^4.0.0",
+    "typescript": "^7.0.2"
   }
 }
