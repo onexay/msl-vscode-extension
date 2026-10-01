@@ -17,8 +17,11 @@ if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
 fi
 [ -z "$(git status --porcelain)" ] || { echo "commit your changes first" >&2; exit 1; }
 git fetch -q origin && [ "$(git rev-parse HEAD)" = "$(git rev-parse "@{u}")" ] || { echo "push HEAD first" >&2; exit 1; }
-RUN=$(gh api "repos/$REPO/actions/artifacts?name=$TAG&per_page=20" --jq '[.artifacts[] | select(.expired | not)][0].workflow_run.id // empty')
-[ -n "$RUN" ] || { echo "CI hasn't built $TAG yet: push the change and wait for the VS Code extension workflow" >&2; exit 1; }
+# The artifact CI built from HEAD itself: a pull request that bumps the
+# version builds artifacts of the same name from its own commits.
+HEAD_SHA=$(git rev-parse HEAD)
+RUN=$(gh api "repos/$REPO/actions/artifacts?name=$TAG&per_page=50" --jq "[.artifacts[] | select((.expired | not) and .workflow_run.head_sha == \"$HEAD_SHA\")][0].workflow_run.id // empty")
+[ -n "$RUN" ] || { echo "CI hasn't built $TAG from HEAD yet: push the change and wait for the VS Code extension workflow" >&2; exit 1; }
 rm -rf dist/ci && gh run download "$RUN" --repo "$REPO" --name "$TAG" --dir dist/ci
 BUILT=$(sed -n 's/^commit //p' dist/ci/build-info.txt)
 [ "$(git rev-parse "$BUILT^{tree}")" = "$(git rev-parse "HEAD^{tree}")" ] \
