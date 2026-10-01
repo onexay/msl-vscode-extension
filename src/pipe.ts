@@ -1,16 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // Managed pipes: a byte stream to a Unix socket or localhost port inside a
-// distro. Each pipe is one connection to msld's connect socket
-// (`CONNECT distro=<name> unix=<path>|tcp=<port>`, then `OK` and the stream).
-// With an older msld that has no connect socket, it falls back to
-// `msl -e /run/msl/init msl-bridge <target>` with its stdio as the stream.
+// distro. Each pipe is an `msl --connect <distro> unix=<path>|tcp=<port>`
+// process whose stdio is the stream: msld only sets it up, and the msl process
+// moves the bytes to and from the VM, so a stuck pipe affects only itself.
 
 import { once } from 'events';
-import * as fs from 'fs';
-import * as net from 'net';
-import * as path from 'path';
 import * as vscode from 'vscode';
-import { log, mslHome, spawnInDistro } from './msl';
+import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
+import { log, mslPath } from './msl';
 
 export type Target = { unix: string } | { tcp: number };
 
@@ -24,91 +21,13 @@ function describe(t: Target): string {
     return 'unix' in t ? `unix:${t.unix}` : `tcp:${t.tcp}`;
 }
 
-function connectSocket(): string {
-    return path.join(mslHome(), 'connect.sock');
-}
-
 export function openPipe(distro: string, target: Target): Promise<Pipe> {
-    const sock = connectSocket();
-    return fs.existsSync(sock) ? openConnectPipe(sock, distro, target) : openBridgePipe(distro, target);
+    const arg = 'unix' in target ? `unix=${target.unix}` : `tcp=${target.tcp}`;
+    return childPipe(distro, target, spawn(mslPath(), ['--connect', distro, arg], { stdio: 'pipe' }));
 }
 
-function openConnectPipe(sock: string, distro: string, target: Target): Promise<Pipe> {
-    return new Promise((resolve, reject) => {
-        const s = net.connect(sock);
-        const onDidReceiveMessage = new vscode.EventEmitter<Uint8Array>();
-        const onDidClose = new vscode.EventEmitter<Error | undefined>();
-        const onDidEnd = new vscode.EventEmitter<void>();
-        let header = Buffer.alloc(0);
-        let ready = false;
-        let closed = false;
-
-        const arg = 'unix' in target ? `unix=${target.unix}` : `tcp=${target.tcp}`;
-        s.write(`CONNECT distro=${distro} ${arg}\n`);
-        s.on('data', (d: Buffer) => {
-            if (ready) {
-                onDidReceiveMessage.fire(d);
-                return;
-            }
-            header = Buffer.concat([header, d]);
-            const nl = header.indexOf(0x0a);
-            if (nl < 0) {
-                return;
-            }
-            const line = header.subarray(0, nl).toString('utf8');
-            const rest = header.subarray(nl + 1);
-            if (line !== 'OK') {
-                const err = new Error(line.replace(/^ERR /, ''));
-                log.warn(`[${distro}] pipe ${describe(target)}: ${err.message}`);
-                s.destroy();
-                reject(err);
-                return;
-            }
-            ready = true;
-            resolve({
-                onDidReceiveMessage: onDidReceiveMessage.event,
-                onDidClose: onDidClose.event,
-                onDidEnd: onDidEnd.event,
-                send: (data: Uint8Array) => {
-                    if (!closed) {
-                        s.write(data);
-                    }
-                },
-                end: () => s.end(),
-                drain: async () => {
-                    if (s.writableNeedDrain) {
-                        await Promise.race([once(s, 'drain'), once(s, 'close')]);
-                    }
-                },
-                pause: () => s.pause(),
-                resume: () => s.resume(),
-            });
-            if (rest.length) {
-                setImmediate(() => onDidReceiveMessage.fire(rest));
-            }
-        });
-        s.on('end', () => ready && onDidEnd.fire());
-        s.on('error', (e) => {
-            if (!ready) {
-                reject(e);
-            } else if (!closed) {
-                closed = true;
-                onDidClose.fire(e);
-            }
-        });
-        s.on('close', () => {
-            if (!ready) {
-                reject(new Error('msld closed the connection'));
-            } else if (!closed) {
-                closed = true;
-                onDidClose.fire(undefined);
-            }
-        });
-    });
-}
-
-function openBridgePipe(distro: string, target: Target): Promise<Pipe> {
-    const child = spawnInDistro(distro, ['/run/msl/init', 'msl-bridge', describe(target)]);
+/** A pipe whose stream is a child process's stdio (msl --connect). */
+function childPipe(distro: string, target: Target, child: ChildProcessWithoutNullStreams): Promise<Pipe> {
     const onDidReceiveMessage = new vscode.EventEmitter<Uint8Array>();
     const onDidClose = new vscode.EventEmitter<Error | undefined>();
     const onDidEnd = new vscode.EventEmitter<void>();
