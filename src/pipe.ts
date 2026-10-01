@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 // Managed pipes: a byte stream to a Unix socket or localhost port inside a
-// distro. Each pipe is one connection to msld's connect socket
-// (`CONNECT distro=<name> unix=<path>|tcp=<port>`, then `OK` and the stream).
-// With an older msld that has no connect socket, it falls back to
-// `msl -e /run/msl/init msl-bridge <target>` with its stdio as the stream.
+// distro. Each pipe is an `msl --connect <distro> unix=<path>|tcp=<port>`
+// process whose stdio is the stream: msld only sets it up, and the msl process
+// moves the bytes to and from the VM, so a stuck pipe affects only itself.
+// With an older msl, each pipe is a connection to msld's connect socket
+// (`CONNECT distro=<name> …`, then `OK` and the stream), or, with an msld that
+// has no connect socket, `msl -e /run/msl/init msl-bridge <target>`.
 
 import { once } from 'events';
 import * as fs from 'fs';
 import * as net from 'net';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { log, mslHome, spawnInDistro } from './msl';
+import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
+import { log, mslHome, mslPath, spawnInDistro } from './msl';
 
 export type Target = { unix: string } | { tcp: number };
 
@@ -28,9 +31,31 @@ function connectSocket(): string {
     return path.join(mslHome(), 'connect.sock');
 }
 
-export function openPipe(distro: string, target: Target): Promise<Pipe> {
+export async function openPipe(distro: string, target: Target): Promise<Pipe> {
+    if (await mslHasConnect()) {
+        const arg = 'unix' in target ? `unix=${target.unix}` : `tcp=${target.tcp}`;
+        return childPipe(distro, target, spawn(mslPath(), ['--connect', distro, arg], { stdio: 'pipe' }));
+    }
     const sock = connectSocket();
     return fs.existsSync(sock) ? openConnectPipe(sock, distro, target) : openBridgePipe(distro, target);
+}
+
+/** Whether this msl has `--connect` (an older one rejects the option), checked once per msl path. */
+const connectSupport = new Map<string, Promise<boolean>>();
+function mslHasConnect(): Promise<boolean> {
+    const msl = mslPath();
+    let known = connectSupport.get(msl);
+    if (!known) {
+        known = new Promise((resolve) => {
+            const child = spawn(msl, ['--connect'], { stdio: ['ignore', 'ignore', 'pipe'] });
+            let err = '';
+            child.stderr.setEncoding('utf8').on('data', (d: string) => (err += d));
+            child.on('error', () => resolve(false));
+            child.on('close', () => resolve(!err.includes('Invalid command line argument')));
+        });
+        connectSupport.set(msl, known);
+    }
+    return known;
 }
 
 function openConnectPipe(sock: string, distro: string, target: Target): Promise<Pipe> {
@@ -108,7 +133,11 @@ function openConnectPipe(sock: string, distro: string, target: Target): Promise<
 }
 
 function openBridgePipe(distro: string, target: Target): Promise<Pipe> {
-    const child = spawnInDistro(distro, ['/run/msl/init', 'msl-bridge', describe(target)]);
+    return childPipe(distro, target, spawnInDistro(distro, ['/run/msl/init', 'msl-bridge', describe(target)]));
+}
+
+/** A pipe whose stream is a child process's stdio (msl --connect, or msl-bridge). */
+function childPipe(distro: string, target: Target, child: ChildProcessWithoutNullStreams): Promise<Pipe> {
     const onDidReceiveMessage = new vscode.EventEmitter<Uint8Array>();
     const onDidClose = new vscode.EventEmitter<Error | undefined>();
     const onDidEnd = new vscode.EventEmitter<void>();
