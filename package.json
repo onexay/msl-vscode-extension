@@ -2,7 +2,7 @@
   "name": "msl",
   "displayName": "MSL",
   "description": "Open folders in msl Linux distros on macOS, like the WSL extension on Windows.",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "publisher": "onexay",
   "license": "Apache-2.0",
   "repository": { "type": "git", "url": "https://github.com/onexay/msl-vscode-extension" },
