@@ -11,4 +11,5 @@ npm run compile
 npm run package
 
 VERSION=$(node -p 'require("./package.json").version')
-test -s "dist/msl-$VERSION.vsix"
+COMMIT=$(git rev-parse --short=7 HEAD)
+test -s "dist/msl-$VERSION+$COMMIT.vsix"

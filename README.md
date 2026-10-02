@@ -63,10 +63,10 @@ Build a local VSIX package from the repository root:
 ./scripts/build.sh
 ```
 
-The package is written to `dist/msl-<version>.vsix`. From the MSL repository root, bundle it with that repository's build script:
+The package is written to `dist/msl-<version>+<short-git-hash>.vsix`. The extension's displayed version includes that short hash, so each build identifies its source commit. From the MSL repository root, bundle it with that repository's build script:
 
 ```sh
-MSL_VSIX=<path-to-this-repo>/dist/msl-<version>.vsix scripts/build.sh
+MSL_VSIX=<path-to-this-repo>/dist/msl-<version>+<short-git-hash>.vsix scripts/build.sh
 ```
 
 For development, launch VS Code with an isolated profile:
@@ -83,12 +83,12 @@ Keep `--user-data-dir` short. VS Code limits its IPC socket path to 103 characte
 
 ## Release
 
-Each release uses the `vscode-<version>` GitHub tag. The **VS Code extension** workflow builds the package; `scripts/publish.sh` publishes the CI-built VSIX and its SHA-256 checksum.
+The CI artifact name and GitHub release tag use `vscode-<full-semver>`, for example `vscode-0.1.0+abc1234`. The **VS Code extension** workflow builds the package; `scripts/publish.sh` publishes that CI-built VSIX and its SHA-256 checksum.
 
-1. Update `version` in `package.json`, commit, and push.
-2. Wait for the workflow to build the `vscode-<version>` artifact.
+1. Update the base `version` in `package.json`, commit, and push. CI adds the commit's short hash to create the full SemVer version for the extension, artifact, and release.
+2. Wait for the workflow to build the `vscode-<version>+<short-git-hash>` artifact.
 3. Run `./scripts/publish.sh` from the extension repository.
-4. In the MSL repository, run `scripts/pin.sh vscode vscode-<version>` and commit the updated pin.
+4. In the MSL repository, run `scripts/pin.sh vscode vscode-<version>+<short-git-hash>` and commit the updated pin.
 
 ## Contributing
 

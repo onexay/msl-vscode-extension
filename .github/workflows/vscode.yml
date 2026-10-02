@@ -1,5 +1,5 @@
 # Build the VS Code extension on every push and pull request. scripts/publish.sh
-# publishes the artifact (vscode-<version>); CI never publishes.
+# publishes the artifact (vscode-<full-semver>); CI never publishes.
 name: VS Code extension
 on:
   push:
@@ -22,14 +22,18 @@ jobs:
       - name: Build
         run: |
           V=$(node -p 'require("./package.json").version')
+          H=$(git rev-parse --short=7 HEAD)
+          FULL_VERSION="$V+$H"
           ./scripts/build.sh
-          [ -f "dist/msl-$V.vsix" ]
+          [ -f "dist/msl-$V+$H.vsix" ]
           { echo "commit ${{ github.sha }}"; echo "node $(node --version)"; } > dist/build-info.txt
           echo "V=$V" >> "$GITHUB_ENV"
+          echo "H=$H" >> "$GITHUB_ENV"
+          echo "FULL_VERSION=$FULL_VERSION" >> "$GITHUB_ENV"
       - uses: actions/upload-artifact@v7
         with:
-          name: vscode-${{ env.V }}
+          name: vscode-${{ env.FULL_VERSION }}
           path: |
-            dist/msl-${{ env.V }}.vsix
+            dist/msl-${{ env.V }}+${{ env.H }}.vsix
             dist/build-info.txt
           if-no-files-found: error

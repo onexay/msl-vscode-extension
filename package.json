@@ -32,7 +32,7 @@
   "scripts": {
     "compile": "tsc -p .",
     "watch": "tsc -w -p .",
-    "package": "mkdir -p dist && vsce package --no-dependencies -o dist/"
+    "package": "sh scripts/package.sh"
   },
   "devDependencies": {
     "@types/node": "^26.6.3",

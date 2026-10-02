@@ -1,8 +1,9 @@
 #!/bin/sh
 # SPDX-License-Identifier: Apache-2.0
 # Publish the MSL VS Code extension CI built (.github/workflows/vscode.yml,
-# artifact vscode-<version>) as GitHub release vscode-<version>, where <version>
-# is package.json's. The artifact must come from a commit whose tree is
+# artifact vscode-<full-version>) as GitHub release vscode-<full-version>, where
+# <full-version> is the base package.json version plus the source commit hash.
+# The artifact must come from a commit whose tree is
 # identical to HEAD's. msl then pins it: scripts/pin.sh vscode <tag> in msl.
 #   ./scripts/publish.sh
 set -eu
@@ -10,8 +11,10 @@ HERE=$(cd "$(dirname "$0")/.." && pwd)
 cd "$HERE"
 REPO=${MSL_VSCODE_REPO:-onexay/msl-vscode-extension}
 VERSION=$(sed -n 's/^  "version": "\(.*\)",$/\1/p' package.json)
-TAG=vscode-$VERSION
-FILE=msl-$VERSION.vsix
+SHORT=$(git rev-parse --short=7 HEAD)
+FULL_VERSION=$VERSION+$SHORT
+TAG=vscode-$FULL_VERSION
+FILE=msl-$VERSION+$SHORT.vsix
 if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
   echo "$TAG is already published: bump \"version\" in package.json" >&2; exit 1
 fi
@@ -31,7 +34,7 @@ mkdir -p dist && cp "dist/ci/$FILE" "dist/$FILE"
 (cd dist && shasum -a 256 "$FILE" > release.sha256)
 gh release create "$TAG" "dist/$FILE" dist/release.sha256 --repo "$REPO" \
   --target "$(git rev-parse HEAD)" \
-  --title "MSL VS Code extension $VERSION" \
+  --title "MSL VS Code extension $FULL_VERSION" \
   --notes "The MSL extension for VS Code and similar IDEs (VS Code Insiders, VSCodium, Cursor), built by CI run $RUN at $(git rev-parse --short "$BUILT"). msl releases bundle it, and \`msl --manage-ide\` installs it. It uses VS Code's proposed \`resolvers\` API, so it isn't on the Marketplace.
 
 \`$FILE\` SHA-256: \`$(cut -d' ' -f1 dist/release.sha256)\`"
