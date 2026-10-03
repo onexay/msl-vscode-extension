@@ -93,5 +93,5 @@ jobs:
             "dist/$FILE" dist/release.sha256 \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "MSL VS Code extension $VERSION" \
+            --title "$TAG" \
             --notes "The MSL extension for VS Code and compatible editors. Built by this workflow from commit $GITHUB_SHA. Install it with msl --manage-ide."
