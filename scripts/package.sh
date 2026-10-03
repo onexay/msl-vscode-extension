@@ -1,14 +1,12 @@
 #!/bin/sh
 # SPDX-License-Identifier: Apache-2.0
-# Stamp the packaged extension with the source commit while keeping the
-# checked-in release version as the stable base version.
+# Package the extension using its SemVer version for development and release builds.
 set -eu
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 cd "$HERE"
 
 BASE_VERSION=$(node -p 'require("./package.json").version')
-COMMIT=$(git rev-parse --short=7 HEAD)
-VERSION="$BASE_VERSION+$COMMIT"
+VERSION=${MSL_VERSION:-$BASE_VERSION}
 MANIFEST_BACKUP=$(mktemp)
 cp package.json "$MANIFEST_BACKUP"
 restore_manifest() {
