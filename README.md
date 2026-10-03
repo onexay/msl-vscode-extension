@@ -76,9 +76,9 @@ Keep `--user-data-dir` short. VS Code limits its IPC socket path to 103 characte
 
 ## Release
 
-Push the extension changes to `main`. In **Actions → VS Code extension**, choose **Run workflow** and enter a SemVer version without the `v` prefix, such as `1.2.3`. The workflow builds the VSIX, creates the `v1.2.3` tag and publishes the VSIX and SHA-256 checksum as a GitHub release.
+Push the extension changes to main, then choose **Actions → VS Code extension → Run workflow**. The first SemVer release uses the version in `package.json`; later releases bump from the latest SemVer tag based on commits since that release. Use Conventional Commit subjects: `feat:` bumps minor, `BREAKING CHANGE:` or a type with `!` (such as `feat!:`) bumps major, and other commits bump patch. If package.json has a version higher than the calculated version, the workflow uses it. The workflow creates the version tag and publishes the VSIX and SHA-256 checksum as a GitHub release.
 
-In the MSL checkout, run `scripts/pin.sh vscode v1.2.3` and commit the updated pin files.
+In the MSL checkout, run `scripts/pin.sh vscode <release-tag>` and commit the updated pin files.
 
 ## Contributing
 
