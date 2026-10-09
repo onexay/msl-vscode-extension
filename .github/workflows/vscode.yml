@@ -94,4 +94,4 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "$TAG" \
-            --notes "The MSL extension for VS Code and compatible editors. Built by this workflow from commit $GITHUB_SHA. Install it with msl --manage-ide."
+            --generate-notes
