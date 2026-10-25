@@ -36,8 +36,8 @@
     "package": "sh scripts/package.sh"
   },
   "devDependencies": {
-    "@types/node": "^26.6.3",
-    "@types/vscode": "^1.100.0",
+    "@types/node": "^26.6.5",
+    "@types/vscode": "^1.140.0",
     "@vscode/vsce": "^4.0.0",
     "typescript": "^7.0.2"
   }
